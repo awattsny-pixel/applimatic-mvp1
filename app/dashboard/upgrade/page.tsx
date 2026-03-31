@@ -157,12 +157,21 @@ export default function UpgradePage() {
               ))}
             </ul>
 
-            <button 
-  disabled
-  className="block text-center py-3 rounded-xl bg-brand text-white font-bold text-sm opacity-50 cursor-not-allowed"
->
-  Coming soon
-</button>
+            {plan.current ? (
+              <button
+                disabled
+                className="block text-center py-3 rounded-xl bg-gray-100 text-gray-500 font-bold text-sm cursor-not-allowed"
+              >
+                Current plan
+              </button>
+            ) : (
+              <button
+                disabled
+                className="block text-center py-3 rounded-xl bg-brand text-white font-bold text-sm opacity-50 cursor-not-allowed"
+              >
+                Coming soon
+              </button>
+            )}
           </div>
         ))}
       </div>
