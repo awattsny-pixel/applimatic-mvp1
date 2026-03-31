@@ -157,19 +157,12 @@ export default function UpgradePage() {
               ))}
             </ul>
 
-            <button
-              onClick={() => handleUpgrade(plan)}
-              disabled={plan.current || loading === plan.name}
-              className={`w-full py-2.5 rounded-xl text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-default ${
-                plan.current
-                  ? 'bg-gray-100 text-gray-500 cursor-default'
-                  : plan.highlight
-                  ? 'btn-primary'
-                  : 'btn-secondary'
-              }`}
-            >
-              {loading === plan.name ? 'Redirecting…' : plan.cta}
-            </button>
+            <button 
+  disabled
+  className="block text-center py-3 rounded-xl bg-brand text-white font-bold text-sm opacity-50 cursor-not-allowed"
+>
+  Coming soon
+</button>
           </div>
         ))}
       </div>
