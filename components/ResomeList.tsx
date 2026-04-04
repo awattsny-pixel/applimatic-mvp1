@@ -5,117 +5,163 @@ import { createClient } from '@/lib/supabase/client'
 
 interface Resume {
   id: string
-  user_id: string
-  file_url: string
   file_name: string
+  file_url: string
   is_primary: boolean
   created_at: string
 }
 
-interface ResomeListProps {
-  userId: string
-}
-
-export default function ResomeList({ userId }: ResomeListProps) {
+export default function ResomeList() {
   const [resumes, setResumes] = useState<Resume[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [deleting, setDeleting] = useState<string | null>(null)
-  const [updating, setUpdating] = useState<string | null>(null)
+  const [user, setUser] = useState<any>(null)
 
   const supabase = createClient()
 
   useEffect(() => {
+    const fetchResumes = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser()
+        if (!user) {
+          setError('Not authenticated')
+          setLoading(false)
+          return
+        }
+
+        setUser(user)
+
+        const { data, error: fetchError } = await supabase
+          .from('resumes')
+          .select('id, file_name, file_url, is_primary, created_at')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+
+        if (fetchError) {
+          setError('Failed to fetch resumes')
+          setLoading(false)
+          return
+        }
+
+        setResumes(data || [])
+        setLoading(false)
+      } catch (err: any) {
+        setError(err.message || 'An error occurred')
+        setLoading(false)
+      }
+    }
+
     fetchResumes()
-  }, [userId])
+  }, [])
 
-  const fetchResumes = async () => {
-    try {
-      setLoading(true)
-      setError(null)
-      const { data, error: fetchError } = await supabase.from('resumes').select('*').eq('user_id', userId).order('is_primary', { ascending: false }).order('created_at', { ascending: false })
-      if (fetchError) {
-        setError(`Failed to load resumes: ${fetchError.message}`)
-        return
-      }
-      setResumes(data || [])
-    } catch (err) {
-      setError('An unexpected error occurred')
-      console.error(err)
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleDelete = async (resumeId: string, fileName: string) => {
+  const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this resume?')) return
+
     try {
-      setDeleting(resumeId)
+      const resume = resumes.find(r => r.id === id)
+      if (!resume || !user) return
+
+      const fileName = `${user.id}/${resume.file_name.split('/').pop()}`
+
       await supabase.storage.from('resumes').remove([fileName])
-      const { error: dbError } = await supabase.from('resumes').delete().eq('id', resumeId).eq('user_id', userId)
+
+      const { error: dbError } = await supabase
+        .from('resumes')
+        .delete()
+        .eq('id', id)
+
       if (dbError) {
-        setError(`Failed to delete resume: ${dbError.message}`)
+        setError('Failed to delete resume')
         return
       }
-      setResumes(resumes.filter((r) => r.id !== resumeId))
-    } catch (err) {
-      setError('Failed to delete resume')
-      console.error(err)
-    } finally {
-      setDeleting(null)
+
+      setResumes(resumes.filter(r => r.id !== id))
+    } catch (err: any) {
+      setError(err.message || 'Failed to delete resume')
     }
   }
 
-  const handleSetPrimary = async (resumeId: string) => {
+  const handleSetPrimary = async (id: string) => {
     try {
-      setUpdating(resumeId)
-      await supabase.from('resumes').update({ is_primary: false }).eq('user_id', userId)
-      const { error } = await supabase.from('resumes').update({ is_primary: true }).eq('id', resumeId).eq('user_id', userId)
-      if (error) {
-        setError(`Failed to update resume: ${error.message}`)
+      if (!user) return
+
+      await supabase
+        .from('resumes')
+        .update({ is_primary: false })
+        .eq('user_id', user.id)
+
+      const { error: updateError } = await supabase
+        .from('resumes')
+        .update({ is_primary: true })
+        .eq('id', id)
+
+      if (updateError) {
+        setError('Failed to set primary resume')
         return
       }
-      setResumes(resumes.map((r) => ({ ...r, is_primary: r.id === resumeId })))
-    } catch (err) {
-      setError('Failed to update resume')
-      console.error(err)
-    } finally {
-      setUpdating(null)
+
+      setResumes(resumes.map(r => ({
+        ...r,
+        is_primary: r.id === id
+      })))
+    } catch (err: any) {
+      setError(err.message || 'Failed to set primary resume')
     }
   }
 
-  if (loading) return <div className="flex justify-center py-8"><p className="text-gray-500">Loading resumes...</p></div>
-  if (error) return <div className="p-4 bg-red-50 border border-red-200 rounded-lg"><p className="text-red-800 text-sm">{error}</p></div>
-  if (resumes.length === 0) return <div className="text-center py-12 bg-gray-50 rounded-lg border border-gray-200"><p className="text-gray-500">No resumes yet. Upload your first resume above.</p></div>
+  if (loading) {
+    return <div className="text-gray-500">Loading resumes...</div>
+  }
+
+  if (error) {
+    return <div className="text-red-500">{error}</div>
+  }
+
+  if (resumes.length === 0) {
+    return <div className="text-gray-500">No resumes uploaded yet</div>
+  }
 
   return (
     <div className="space-y-4">
-      {resumes.map((resume) => (
-        <div key={resume.id} className={`flex items-center justify-between p-4 border rounded-lg transition ${resume.is_primary ? 'bg-blue-50 border-blue-200' : 'bg-white border-gray-200 hover:bg-gray-50'}`}>
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3">
-              <svg className="w-5 h-5 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" /></svg>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-gray-900 truncate">{resume.file_name}</p>
-                <p className="text-xs text-gray-500">{new Date(resume.created_at).toLocaleDateString()}</p>
+      {resumes.map(resume => (
+        <div
+          key={resume.id}
+          className="flex items-center justify-between p-4 border rounded-lg bg-white hover:bg-gray-50"
+        >
+          <div className="flex-1">
+            <div className="font-medium text-gray-900">{resume.file_name}</div>
+            <div className="text-sm text-gray-500">
+              Uploaded {new Date(resume.created_at).toLocaleDateString()}
+            </div>
+            {resume.is_primary && (
+              <div className="text-xs mt-1 inline-block px-2 py-1 bg-blue-100 text-blue-800 rounded">
+                Primary
               </div>
-            </div>
+            )}
           </div>
-          <div className="flex items-center gap-2 ml-4">
-            {resume.is_primary && <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">Primary</span>}
-            <div className="flex gap-2">
-              {!resume.is_primary && (
-                <button onClick={() => handleSetPrimary(resume.id)} disabled={updating === resume.id} className="text-xs px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 transition">
-                  {updating === resume.id ? 'Setting...' : 'Set as Primary'}
-                </button>
-              )}
-              <a href={resume.file_url} target="_blank" rel="noopener noreferrer" className="text-xs px-3 py-1 bg-gray-200 text-gray-800 rounded hover:bg-gray-300 transition">
-                View
-              </a>
-              <button onClick={() => handleDelete(resume.id, resume.file_name)} disabled={deleting === resume.id} className="text-xs px-3 py-1 bg-red-100 text-red-700 rounded hover:bg-red-200 disabled:opacity-50 transition">
-                {deleting === resume.id ? 'Deleting...' : 'Delete'}
+          <div className="flex gap-2">
+            
+              href={resume.file_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              View
+            </a>
+            {!resume.is_primary && (
+              <button
+                onClick={() => handleSetPrimary(resume.id)}
+                className="px-3 py-2 text-sm bg-gray-200 text-gray-800 rounded hover:bg-gray-300"
+              >
+                Set Primary
               </button>
-            </div>
+            )}
+            <button
+              onClick={() => handleDelete(resume.id)}
+              className="px-3 py-2 text-sm bg-red-600 text-white rounded hover:bg-red-700"
+            >
+              Delete
+            </button>
           </div>
         </div>
       ))}
