@@ -16,7 +16,6 @@ export default function ResomeList() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [user, setUser] = useState<any>(null)
-
   const supabase = createClient()
 
   useEffect(() => {
@@ -28,21 +27,17 @@ export default function ResomeList() {
           setLoading(false)
           return
         }
-
         setUser(user)
-
         const { data, error: fetchError } = await supabase
           .from('resumes')
           .select('id, file_name, file_url, is_primary, created_at')
           .eq('user_id', user.id)
           .order('created_at', { ascending: false })
-
         if (fetchError) {
           setError('Failed to fetch resumes')
           setLoading(false)
           return
         }
-
         setResumes(data || [])
         setLoading(false)
       } catch (err: any) {
@@ -50,31 +45,24 @@ export default function ResomeList() {
         setLoading(false)
       }
     }
-
     fetchResumes()
   }, [])
 
   const handleDelete = async (id: string) => {
     if (!confirm('Are you sure you want to delete this resume?')) return
-
     try {
       const resume = resumes.find(r => r.id === id)
       if (!resume || !user) return
-
       const fileName = `${user.id}/${resume.file_name.split('/').pop()}`
-
       await supabase.storage.from('resumes').remove([fileName])
-
       const { error: dbError } = await supabase
         .from('resumes')
         .delete()
         .eq('id', id)
-
       if (dbError) {
         setError('Failed to delete resume')
         return
       }
-
       setResumes(resumes.filter(r => r.id !== id))
     } catch (err: any) {
       setError(err.message || 'Failed to delete resume')
@@ -84,22 +72,18 @@ export default function ResomeList() {
   const handleSetPrimary = async (id: string) => {
     try {
       if (!user) return
-
       await supabase
         .from('resumes')
         .update({ is_primary: false })
         .eq('user_id', user.id)
-
       const { error: updateError } = await supabase
         .from('resumes')
         .update({ is_primary: true })
         .eq('id', id)
-
       if (updateError) {
         setError('Failed to set primary resume')
         return
       }
-
       setResumes(resumes.map(r => ({
         ...r,
         is_primary: r.id === id
@@ -141,7 +125,7 @@ export default function ResomeList() {
           </div>
           <div className="flex gap-2">
             
-              href={resume.file_url}
+<a              href={resume.file_url}
               target="_blank"
               rel="noopener noreferrer"
               className="px-3 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700"
