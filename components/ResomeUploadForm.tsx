@@ -2,115 +2,172 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { extractTextFromFile } from '@/lib/extractText'
 
-interface ResomeUploadFormProps {
-  userId: string
-  onUploadSuccess: () => void
-}
-
-export default function ResomeUploadForm({ userId, onUploadSuccess }: ResomeUploadFormProps) {
+export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess: () => void }) {
   const [isDragging, setIsDragging] = useState(false)
-  const [uploading, setUploading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const supabase = createClient()
 
-  const handleDrag = (e: React.DragEvent) => {
+  const ALLOWED_TYPES = [
+    'application/pdf',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/msword'
+  ]
+  const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+
+  const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
-    e.stopPropagation()
-    setIsDragging(e.type === 'dragenter' || e.type === 'dragover')
+    setIsDragging(true)
+  }
+
+  const handleDragLeave = () => {
+    setIsDragging(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragging(false)
+    if (e.dataTransfer.files.length) {
+      handleFile(e.dataTransfer.files[0])
+    }
+  }
+
+  const handleFileInput = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files?.length) {
+      handleFile(e.target.files[0])
+    }
   }
 
   const handleFile = async (file: File) => {
     setError(null)
-    setSuccess(false)
-
-    const maxSize = 5 * 1024 * 1024
-    const allowedTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document']
-
-    if (!allowedTypes.includes(file.type)) {
-      setError('Only PDF and Word documents are allowed')
-      return
-    }
-
-    if (file.size > maxSize) {
-      setError('File size must be less than 5MB')
-      return
-    }
+    setIsLoading(true)
 
     try {
-      setUploading(true)
-
-      // Upload to Storage
-const fileName = `${userId}/${Date.now()}-${file.name}`
-const { data, error: uploadError } = await supabase.storage
-  .from('resumes')
-  .upload(fileName, file, {
-    cacheControl: '3600',
-    upsert: false,
-  })
-      if (uploadError) {
-        setError(`Upload failed: ${uploadError.message}`)
-        console.error('Storage error:', uploadError)
+      // Validate file type
+      if (!ALLOWED_TYPES.includes(file.type)) {
+        setError('Please upload a PDF or Word document (.docx or .doc)')
+        setIsLoading(false)
         return
       }
 
-      const { data: { publicUrl } } = supabase.storage.from('resumes').getPublicUrl(fileName)
+      // Validate file size
+      if (file.size > MAX_FILE_SIZE) {
+        setError('File size must be less than 5MB')
+        setIsLoading(false)
+        return
+      }
 
-      const { error: dbError } = await supabase.from('resumes').insert([{
-        user_id: userId,
-        file_url: publicUrl,
-        file_name: file.name,
-        is_primary: false,
-        created_at: new Date().toISOString(),
-      }])
+      // Get authenticated user
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) {
+        setError('You must be logged in to upload a resume')
+        setIsLoading(false)
+        return
+      }
+
+      // Extract text from file
+      let extractedText: string
+      try {
+        extractedText = await extractTextFromFile(file)
+      } catch (extractError: any) {
+        setError(extractError.message || 'Failed to extract text from file')
+        setIsLoading(false)
+        return
+      }
+
+      // Upload file to Supabase Storage
+      const fileName = `${user.id}/${Date.now()}-${file.name}`
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('resumes')
+        .upload(fileName, file, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: file.type || 'application/octet-stream'
+        })
+
+      if (uploadError) {
+        setError('Failed to upload file. Please try again.')
+        setIsLoading(false)
+        return
+      }
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('resumes')
+        .getPublicUrl(fileName)
+
+      // Insert resume metadata into database with extracted text
+      const { error: dbError } = await supabase
+        .from('resumes')
+        .insert([{
+          user_id: user.id,
+          file_url: publicUrl,
+          file_name: file.name,
+          content_text: extractedText,
+          is_primary: false,
+          created_at: new Date().toISOString()
+        }])
 
       if (dbError) {
-        setError(`Database error: ${dbError.message}`)
-        console.error('Database error:', dbError)
+        setError('Failed to save resume information. Please try again.')
+        setIsLoading(false)
         return
       }
 
-      setSuccess(true)
-      if (fileInputRef.current) fileInputRef.current.value = ''
+      // Reset form
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
       onUploadSuccess()
-      setTimeout(() => setSuccess(false), 3000)
-    } catch (err) {
-      setError('An unexpected error occurred')
-      console.error(err)
-    } finally {
-      setUploading(false)
+      setIsLoading(false)
+    } catch (err: any) {
+      setError(err.message || 'An error occurred during upload')
+      setIsLoading(false)
     }
-  }
-
-  const handleDrop = (e: React.DragEvent) => {
-    handleDrag(e)
-    const files = e.dataTransfer.files
-    if (files.length > 0) handleFile(files[0])
-  }
-
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.currentTarget.files
-    if (files && files.length > 0) handleFile(files[0])
   }
 
   return (
     <div className="w-full">
-      {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg"><p className="text-red-800 text-sm">{error}</p></div>}
-      {success && <div className="mb-4 p-4 bg-green-50 border border-green-200 rounded-lg"><p className="text-green-800 text-sm">Resume uploaded successfully!</p></div>}
-      <div onDragEnter={handleDrag} onDragLeave={handleDrag} onDragOver={handleDrag} onDrop={handleDrop} className={`relative border-2 border-dashed rounded-lg p-8 text-center transition ${isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50'} ${uploading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}>
-        <input ref={fileInputRef} type="file" onChange={handleFileSelect} disabled={uploading} className="hidden" accept=".pdf,.doc,.docx" />
-        <button type="button" onClick={() => fileInputRef.current?.click()} disabled={uploading} className="focus:outline-none">
-          <div className="flex flex-col items-center justify-center">
-            <svg className="w-12 h-12 text-gray-400 mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" /></svg>
-            <p className="text-lg font-medium text-gray-700">{uploading ? 'Uploading...' : 'Drag and drop your resume'}</p>
-            <p className="text-sm text-gray-500 mt-1">or click to select a file</p>
-            <p className="text-xs text-gray-400 mt-2">PDF or Word documents (max 5MB)</p>
+      <div
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+        className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+          isDragging
+            ? 'border-blue-500 bg-blue-50'
+            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+        } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".pdf,.docx,.doc"
+          onChange={handleFileInput}
+          disabled={isLoading}
+          className="hidden"
+          id="resume-upload"
+        />
+        <label htmlFor="resume-upload" className="cursor-pointer">
+          <div className="text-gray-600">
+            <div className="text-lg font-semibold mb-2">
+              {isLoading ? 'Uploading...' : 'Drag and drop your resume'}
+            </div>
+            <div className="text-sm text-gray-500">
+              or click to browse (PDF or Word, max 5MB)
+            </div>
           </div>
-        </button>
+        </label>
       </div>
+
+      {error && (
+        <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded text-red-700 text-sm">
+          {error}
+        </div>
+      )}
     </div>
   )
 }
