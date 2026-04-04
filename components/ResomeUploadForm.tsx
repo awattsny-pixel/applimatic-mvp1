@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { extractTextFromFile } from '@/lib/extractText'
+import { extractTextFromFile } from '@/lib/actions/extractText'
 
 export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess: () => void }) {
   const [isDragging, setIsDragging] = useState(false)
@@ -17,7 +17,7 @@ export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess:
     'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
     'application/msword'
   ]
-  const MAX_FILE_SIZE = 5 * 1024 * 1024 // 5MB
+  const MAX_FILE_SIZE = 5 * 1024 * 1024
 
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault()
@@ -47,21 +47,18 @@ export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess:
     setIsLoading(true)
 
     try {
-      // Validate file type
       if (!ALLOWED_TYPES.includes(file.type)) {
         setError('Please upload a PDF or Word document (.docx or .doc)')
         setIsLoading(false)
         return
       }
 
-      // Validate file size
       if (file.size > MAX_FILE_SIZE) {
         setError('File size must be less than 5MB')
         setIsLoading(false)
         return
       }
 
-      // Get authenticated user
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) {
         setError('You must be logged in to upload a resume')
@@ -69,19 +66,18 @@ export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess:
         return
       }
 
-      // Extract text from file
       let extractedText: string
       try {
-        extractedText = await extractTextFromFile(file)
+        const arrayBuffer = await file.arrayBuffer()
+        extractedText = await extractTextFromFile(arrayBuffer, file.type)
       } catch (extractError: any) {
         setError(extractError.message || 'Failed to extract text from file')
         setIsLoading(false)
         return
       }
 
-      // Upload file to Supabase Storage
       const fileName = `${user.id}/${Date.now()}-${file.name}`
-      const { data: uploadData, error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('resumes')
         .upload(fileName, file, {
           cacheControl: '3600',
@@ -95,12 +91,10 @@ export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess:
         return
       }
 
-      // Get public URL
       const { data: { publicUrl } } = supabase.storage
         .from('resumes')
         .getPublicUrl(fileName)
 
-      // Insert resume metadata into database with extracted text
       const { error: dbError } = await supabase
         .from('resumes')
         .insert([{
@@ -118,7 +112,6 @@ export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess:
         return
       }
 
-      // Reset form
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -137,9 +130,7 @@ export default function ResomeUploadForm({ onUploadSuccess }: { onUploadSuccess:
         onDragLeave={handleDragLeave}
         onDrop={handleDrop}
         className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-          isDragging
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-gray-300 bg-gray-50 hover:border-gray-400'
+          isDragging ? 'border-blue-500 bg-blue-50' : 'border-gray-300 bg-gray-50 hover:border-gray-400'
         } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
       >
         <input
