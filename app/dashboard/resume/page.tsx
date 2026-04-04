@@ -7,9 +7,8 @@ import ResomeList from '@/components/ResomeList'
 export default function ResumePage() {
   // ✅ MOVED THESE THREE useState CALLS TO THE TOP
   const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-  const [refreshKey, setRefreshKey] = useState(0)
-
+const [loading, setLoading] = useState(true)
+const [refreshKey, setRefreshKey] = useState(0)
   useEffect(() => {
     const getUser = async () => {
       const supabase = createClient()
