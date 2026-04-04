@@ -43,9 +43,14 @@ export default function ResomeUploadForm({ userId, onUploadSuccess }: ResomeUplo
     try {
       setUploading(true)
 
-      const fileName = `${userId}/${Date.now()}-${file.name}`
-      const { data, error: uploadError } = await supabase.storage.from('resumes').upload(fileName, file, { cacheControl: '3600', upsert: false })
-
+      // Upload to Storage
+const fileName = `${userId}/${Date.now()}-${file.name}`
+const { data, error: uploadError } = await supabase.storage
+  .from('resumes')
+  .upload(fileName, file, {
+    cacheControl: '3600',
+    upsert: false,
+  })
       if (uploadError) {
         setError(`Upload failed: ${uploadError.message}`)
         console.error('Storage error:', uploadError)
