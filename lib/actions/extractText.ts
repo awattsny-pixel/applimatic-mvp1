@@ -6,7 +6,8 @@ import mammoth from 'mammoth'
 export async function extractTextFromFile(arrayBuffer: ArrayBuffer, mimeType: string): Promise<string> {
   if (mimeType === 'application/pdf') {
     try {
-      const data = await pdfParse(Buffer.from(arrayBuffer))
+      const buffer = Buffer.from(new Uint8Array(arrayBuffer))
+      const data = await pdfParse(buffer)
       return data.text
     } catch (error) {
       console.error('PDF extraction error:', error)
