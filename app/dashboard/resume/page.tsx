@@ -1,14 +1,14 @@
 'use client'
-
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import ResomeUploadForm from '@/components/ResomeUploadForm'
 import ResomeList from '@/components/ResomeList'
 
 export default function ResumePage() {
+  // ✅ MOVED THESE THREE useState CALLS TO THE TOP
   const [user, setUser] = useState<any>(null)
-  const [loading, setLoading] = useState(true)
-
+const [loading, setLoading] = useState(true)
+const [refreshKey, setRefreshKey] = useState(0)
   useEffect(() => {
     const getUser = async () => {
       const supabase = createClient()
@@ -27,12 +27,9 @@ export default function ResumePage() {
     return <div className="p-8 text-center text-red-500">Please log in to manage your resumes</div>
   }
 
-  const [refreshKey, setRefreshKey] = useState(0)
-
   return (
     <div className="max-w-4xl mx-auto p-8">
       <h1 className="text-3xl font-bold text-gray-900 mb-8">Resume Manager</h1>
-
       <div className="grid grid-cols-1 gap-8">
         <div>
           <div className="mb-8">
