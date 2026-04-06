@@ -6,11 +6,10 @@ import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { buildTailorPrompt } from '@/lib/prompts'
+import { gateFeatureAccess, recordFeatureUsage } from '@/lib/middleware/packageFeatureGate'
 
 // Allow up to 120 seconds for full processing
 export const maxDuration = 120
-
-const PLAN_LIMITS = { free: 3, starter: 20, pro: Infinity } as const
 
 export async function POST(request: NextRequest) {
   const startTime = Date.now()
@@ -28,53 +27,35 @@ export async function POST(request: NextRequest) {
     }
     console.log('✓ Auth OK - User ID:', user.id)
 
-    // ── 2. Check usage limits ──────────────────────────────
-    console.log('Step 2: Checking usage limits...')
-    const { data: profile, error: profileError } = await supabase
-      .from('profiles')
-      .select('plan, apps_used')
-      .eq('id', user.id)
-      .single()
+    // ── 2. Check feature access via middleware ─────────────
+    console.log('Step 2: Checking feature access via middleware...')
+    const accessResult = await gateFeatureAccess({
+      supabase,
+      userId: user.id,
+      featureKey: 'tailor',
+      operation: 'api_call'
+    })
 
-    if (profileError) {
-      // If profile doesn't exist (PGRST116), create one with defaults
-      if (profileError.code === 'PGRST116') {
-        console.warn('⚠️ Profile not found for user, creating one...')
-        const { error: createError } = await supabase
-          .from('profiles')
-          .insert({
-            id: user.id,
-            plan: 'free',
-            apps_used: 0,
-          })
-
-        if (createError) {
-          console.error('❌ Failed to create profile:', createError)
-          return NextResponse.json({ error: 'Failed to create profile', details: createError.message }, { status: 500 })
-        }
-        console.log('✓ Profile created successfully')
-      } else {
-        console.error('❌ Profile fetch error:', profileError)
-        return NextResponse.json({ error: 'Failed to fetch profile', details: profileError.message }, { status: 500 })
-      }
-    }
-
-    const plan  = (profile?.plan ?? 'free') as keyof typeof PLAN_LIMITS
-    const used  = profile?.apps_used ?? 0
-    const limit = PLAN_LIMITS[plan]
-    console.log(`✓ Plan: ${plan} | Used: ${used}/${limit}`)
-
-    if (used >= limit) {
-      console.warn(`⚠️ Usage limit reached for plan: ${plan}`)
+    if (!accessResult.hasAccess) {
+      console.warn(`⚠️ Feature access denied: ${accessResult.reason}`)
       return NextResponse.json(
-        { error: 'usage_limit', message: `You've used all ${limit} applications on your ${plan} plan. Please upgrade to continue.` },
+        {
+          error: accessResult.reason,
+          message: accessResult.message,
+          remainingRequests: accessResult.remainingRequests,
+          tier: accessResult.userTier
+        },
         { status: 403 }
       )
     }
 
+    console.log(`✓ Feature access granted for tier: ${accessResult.userTier}`)
+    console.log(`  Remaining requests: ${accessResult.remainingRequests}`)
+
     // ── 3. Parse request body ──────────────────────────────
     console.log('Step 3: Parsing request body...')
     let jobDescription, companyName, jobTitle, jobUrl
+
     try {
       const body = await request.json()
       jobDescription = body.jobDescription
@@ -90,6 +71,7 @@ export async function POST(request: NextRequest) {
       console.error('❌ Job description too short:', jobDescription?.length ?? 0, 'chars')
       return NextResponse.json({ error: 'Job description is too short.' }, { status: 400 })
     }
+
     console.log(`✓ Request parsed: ${jobDescription.length} chars, company: ${companyName || 'N/A'}, title: ${jobTitle || 'N/A'}`)
 
     // ── 4. Fetch master resume text ────────────────────────
@@ -125,6 +107,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       )
     }
+
     console.log(`✓ Resume loaded: ${resume.content_text.length} chars from file: ${resume.file_name}`)
 
     // ── 5. Call Claude API ─────────────────────────────────
@@ -140,6 +123,7 @@ export async function POST(request: NextRequest) {
     })
 
     let tailoredData: any
+
     try {
       const prompt = buildTailorPrompt(
         resume.content_text,
@@ -147,6 +131,7 @@ export async function POST(request: NextRequest) {
         companyName || 'this company',
         jobTitle    || 'this role'
       )
+
       console.log(`✓ Prompt built: ${prompt.length} chars`)
       console.log('Calling Claude API (model: claude-sonnet-4-6, max_tokens: 8192)...')
 
@@ -156,6 +141,7 @@ export async function POST(request: NextRequest) {
         max_tokens: 8192,
         messages:   [{ role: 'user', content: prompt }],
       })
+
       const claudeDuration = Date.now() - claudeStartTime
       console.log(`✓ Claude API responded in ${claudeDuration}ms`)
       console.log(`Response: ${message.content.length} content blocks, stop_reason: ${message.stop_reason}`)
@@ -183,7 +169,6 @@ export async function POST(request: NextRequest) {
       console.error('❌ Claude API error:', claudeErr.message || claudeErr)
       console.error('Error type:', claudeErr.constructor.name)
       console.error('Full error:', JSON.stringify(claudeErr, null, 2))
-
       return NextResponse.json(
         {
           error: 'Claude API error',
@@ -234,6 +219,7 @@ export async function POST(request: NextRequest) {
         status:              'draft',
         tailored_output_id:  savedOutput?.id ?? null,
       })
+
       if (appError) {
         console.error('⚠️ Application record insert error (non-fatal):', appError)
       } else {
@@ -241,18 +227,14 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // ── 8. Increment usage counter ─────────────────────────
-    console.log('Step 8: Incrementing usage counter...')
-    const { error: updateError } = await supabase
-      .from('profiles')
-      .update({ apps_used: used + 1 })
-      .eq('id', user.id)
-
-    if (updateError) {
-      console.error('⚠️ Failed to increment usage counter (non-fatal):', updateError)
-    } else {
-      console.log(`✓ Usage counter incremented: ${used} → ${used + 1}`)
-    }
+    // ── 8. Record feature usage via middleware ─────────────
+    console.log('Step 8: Recording feature usage...')
+    await recordFeatureUsage(supabase, user.id, 'tailor', {
+      outputId: savedOutput?.id,
+      companyName,
+      jobTitle,
+    })
+    console.log('✓ Feature usage recorded')
 
     // ── 9. Return result ───────────────────────────────────
     const totalDuration = Date.now() - startTime
@@ -262,7 +244,8 @@ export async function POST(request: NextRequest) {
       success:   true,
       outputId:  savedOutput?.id,
       data:      tailoredData,
-      remaining: Math.max(0, limit - (used + 1)),
+      remaining: accessResult.remainingRequests - 1,
+      tier:      accessResult.userTier,
     })
   } catch (error: any) {
     const totalDuration = Date.now() - startTime
