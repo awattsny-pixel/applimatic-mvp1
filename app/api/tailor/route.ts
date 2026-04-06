@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
       apiKey: process.env.ANTHROPIC_API_KEY,
     })
 
+    let tailoredData: any
     try {
       const prompt = buildTailorPrompt(
         resume.content_text,
@@ -140,6 +141,26 @@ export async function POST(request: NextRequest) {
       const claudeDuration = Date.now() - claudeStartTime
       console.log(`✓ Claude API responded in ${claudeDuration}ms`)
       console.log(`Response: ${message.content.length} content blocks, stop_reason: ${message.stop_reason}`)
+
+      // ── 6. Parse AI response ───────────────────────────────
+      console.log('Step 6: Parsing Claude response...')
+      const rawText = message.content[0].type === 'text' ? message.content[0].text : ''
+      console.log(`Raw response length: ${rawText.length} chars`)
+
+      try {
+        // Strip any accidental markdown code fences if present
+        const cleaned = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
+        console.log(`Cleaned response length: ${cleaned.length} chars`)
+        tailoredData = JSON.parse(cleaned)
+        console.log(`✓ JSON parsed successfully. Keys: ${Object.keys(tailoredData).join(', ')}`)
+      } catch (parseErr: any) {
+        console.error('❌ Failed to parse Claude JSON response:', parseErr.message)
+        console.error('First 500 chars of response:', rawText.slice(0, 500))
+        return NextResponse.json(
+          { error: 'AI returned an unexpected format. Please try again.', details: parseErr.message },
+          { status: 500 }
+        )
+      }
     } catch (claudeErr: any) {
       console.error('❌ Claude API error:', claudeErr.message || claudeErr)
       console.error('Error type:', claudeErr.constructor.name)
@@ -152,27 +173,6 @@ export async function POST(request: NextRequest) {
           type: claudeErr.status || 'unknown'
         },
         { status: claudeErr.status || 500 }
-      )
-    }
-
-    // ── 6. Parse AI response ───────────────────────────────
-    console.log('Step 6: Parsing Claude response...')
-    const rawText = message.content[0].type === 'text' ? message.content[0].text : ''
-    console.log(`Raw response length: ${rawText.length} chars`)
-
-    let tailoredData: any
-    try {
-      // Strip any accidental markdown code fences if present
-      const cleaned = rawText.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim()
-      console.log(`Cleaned response length: ${cleaned.length} chars`)
-      tailoredData = JSON.parse(cleaned)
-      console.log(`✓ JSON parsed successfully. Keys: ${Object.keys(tailoredData).join(', ')}`)
-    } catch (parseErr: any) {
-      console.error('❌ Failed to parse Claude JSON response:', parseErr.message)
-      console.error('First 500 chars of response:', rawText.slice(0, 500))
-      return NextResponse.json(
-        { error: 'AI returned an unexpected format. Please try again.', details: parseErr.message },
-        { status: 500 }
       )
     }
 
