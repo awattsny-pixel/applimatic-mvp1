@@ -37,8 +37,26 @@ export async function POST(request: NextRequest) {
       .single()
 
     if (profileError) {
-      console.error('❌ Profile fetch error:', profileError)
-      return NextResponse.json({ error: 'Failed to fetch profile', details: profileError.message }, { status: 500 })
+      // If profile doesn't exist (PGRST116), create one with defaults
+      if (profileError.code === 'PGRST116') {
+        console.warn('⚠️ Profile not found for user, creating one...')
+        const { error: createError } = await supabase
+          .from('profiles')
+          .insert({
+            id: user.id,
+            plan: 'free',
+            apps_used: 0,
+          })
+
+        if (createError) {
+          console.error('❌ Failed to create profile:', createError)
+          return NextResponse.json({ error: 'Failed to create profile', details: createError.message }, { status: 500 })
+        }
+        console.log('✓ Profile created successfully')
+      } else {
+        console.error('❌ Profile fetch error:', profileError)
+        return NextResponse.json({ error: 'Failed to fetch profile', details: profileError.message }, { status: 500 })
+      }
     }
 
     const plan  = (profile?.plan ?? 'free') as keyof typeof PLAN_LIMITS
