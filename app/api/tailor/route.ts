@@ -178,7 +178,7 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
     }
 
     console.log('Step 8: Recording feature usage...')
-    await recordFeatureUsage(supabase, user.id, 'tailor', { responseTimeMs: totalDuration, tokensUsed: response.usage?.output_tokens })
+    await recordFeatureUsage(supabase, user.id, 'tailor', { responseTimeMs: Date.now() - startTime, tokensUsed: response.usage?.output_tokens })
     console.log('✓ Feature usage recorded')
 
     const totalDuration = Date.now() - startTime
