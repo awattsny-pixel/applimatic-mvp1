@@ -188,8 +188,8 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
       success: true,
       outputId: savedOutput?.id,
       data: tailoredData,
-      remaining: accessResult.remainingRequests - 1,
-      tier: accessResult.userTier
+      remaining: accessResult.usageStats?.remaining - 1,
+      tier: accessResult.packageTier
     })
   } catch (error: any) {
     const totalDuration = Date.now() - startTime
