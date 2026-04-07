@@ -26,7 +26,7 @@ export default async function DashboardPage() {
 
   // Free tier limit
   const PLAN_LIMITS = { free: 3, starter: 20, pro: Infinity }
-  const plan       = profile?.plan ?? 'free'
+  const plan       = profile?.package_tier ?? 'free'
   const limit      = PLAN_LIMITS[plan as keyof typeof PLAN_LIMITS]
   const used       = profile?.apps_used ?? 0
   const remaining  = Math.max(0, limit - used)
