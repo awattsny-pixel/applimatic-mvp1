@@ -45,51 +45,19 @@ export default async function DashboardPage() {
       </div>
 
       {/* Usage banner */}
-      <>
+      {(plan === 'free' || plan === 'starter') && (
         <div className="relative overflow-hidden rounded-2xl mb-8 bg-gradient-to-r from-brand to-blue-500 p-6 text-white">
-          {/* Background decoration */}
-          <div className="absolute right-0 top-0 w-48 h-48 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/4" />
-          <div className="absolute right-12 bottom-0 w-24 h-24 bg-white/5 rounded-full translate-y-1/2" />
-
           <div className="relative flex items-center justify-between gap-6 flex-wrap">
             <div>
-              <div className="flex items-center gap-2 mb-1">
-                <span className="text-xs font-bold bg-white/20 px-2.5 py-0.5 rounded-full uppercase tracking-wide">{plan === 'free' ? 'Free' : plan === 'starter' ? 'Starter' : 'Pro'} plan</span>
-                {plan !== 'pro' && <span className="text-white/70 text-xs">{remaining} of {limit} Applimatic left this month</span>}
-              </div>
-              <p className="text-lg font-black">You're {limit - remaining === 0 ? 'just getting started' : `${limit - remaining} application${limit - remaining > 1 ? 's' : ''} in`} — land more interviews faster.</p>
-              <p className="text-white/70 text-sm mt-1">Starter gives you 20 Applimatic applications/month + full keyword analysis.</p>
+              <span className="text-xs font-bold bg-white/20 px-2.5 py-0.5 rounded-full uppercase tracking-wide mb-2 inline-block">{plan === 'free' ? 'Free' : 'Starter'} plan</span>
+              <p className="text-lg font-black mt-2">Upgrade to unlock more Applimatic</p>
+              <p className="text-white/70 text-sm mt-1">Pro gives you unlimited applications + priority support.</p>
             </div>
-            {plan !== 'pro' && (<div className="flex flex-col gap-2 flex-shrink-0">
-              <Link
-                href="/dashboard/upgrade"
-                className="bg-white text-brand font-bold text-sm px-6 py-2.5 rounded-xl hover:bg-blue-50 transition-colors text-center shadow-sm"
-              >
-                See plans & pricing →
-              </Link>
-              <p className="text-white/50 text-xs text-center">Cancel anytime · No card required to start</p>
-            </div>
+            <Link href="/dashboard/upgrade" className="bg-white text-brand font-bold text-sm px-6 py-2.5 rounded-xl hover:bg-blue-50 transition-colors flex-shrink-0">See plans →</Link>
           </div>
-          )}
-
-          {/* Usage bar */}
-          {plan !== 'pro' && (
-          <div className="relative mt-4">
-            <div className="flex justify-between text-xs text-white/60 mb-1.5">
-              <span>{used} used</span>
-              <span>{remaining} remaining</span>
-            </div>
-            <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-white rounded-full transition-all"
-                style={{ width: `${Math.min(100, (used / limit) * 100)}%` }}
-              />
-            </div>
-          </div>
-          )}
         </div>
-      </>
-
+      )}
+      
       {/* Stats */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-8">
         {[
