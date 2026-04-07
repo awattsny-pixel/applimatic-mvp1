@@ -187,7 +187,6 @@ export async function POST(request: NextRequest) {
       }
     }
     console.log('Step 8: Recording feature usage...')
-    await recordFeatureUsage(supabase, user.id, 'tailor', {
       outputId: savedOutput?.id,
       companyName,
       jobTitle,
