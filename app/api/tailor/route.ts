@@ -1,7 +1,3 @@
-// ============================================================
-//  The core AI endpoint. Takes a job description + user's
-//  master resume and returns a fully tailored application.
-// ============================================================
 import { NextRequest, NextResponse } from 'next/server'
 import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
@@ -187,6 +183,7 @@ export async function POST(request: NextRequest) {
       }
     }
     console.log('Step 8: Recording feature usage...')
+    await recordFeatureUsage(user.id, 'tailor', {
       outputId: savedOutput?.id,
       companyName,
       jobTitle,
