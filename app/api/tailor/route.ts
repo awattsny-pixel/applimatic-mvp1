@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
     console.log('Step 2: Checking feature access via middleware...')
     const accessResult = await gateFeatureAccess({
       userId: user.id,
-      featureKey: lor',
+      featureKey: 'tailor',
       operation: 'api_call'
     })
     if (!accessResult.hasAccess) {
