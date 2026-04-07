@@ -24,7 +24,6 @@ export async function POST(request: NextRequest) {
     console.log('✓ Auth OK - User ID:', user.id)
     console.log('Step 2: Checking feature access via middleware...')
     const accessResult = await gateFeatureAccess({
-      supabase,
       userId: user.id,
       featureKey: 'tailor',
       operation: 'api_call'
