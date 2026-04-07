@@ -22,17 +22,7 @@ export async function POST(request: NextRequest) {
 
     console.log('Step 2: Checking feature access via middleware...')
     const accessResult = await gateFeatureAccess({
-      request,
-      featureKey: 'tailor',
-      logRequestId: user.id
-    })
 
-
-   const accessResult = await gateFeatureAccess({
-  request,
-  featureKey: 'tailor',
-  logRequestId: user.id
-})
 
 if (!accessResult.allowed) {
   console.warn(`⚠️ Feature access denied: ${accessResult.error}`)
