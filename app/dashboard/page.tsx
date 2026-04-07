@@ -70,6 +70,7 @@ export default async function DashboardPage() {
               <p className="text-white/50 text-xs text-center">Cancel anytime · No card required to start</p>
             </div>
           </div>
+          )}
 
           {/* Usage bar */}
           {plan !== 'pro' && (
