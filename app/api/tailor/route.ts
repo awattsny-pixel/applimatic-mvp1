@@ -28,13 +28,27 @@ export async function POST(request: NextRequest) {
     })
 
 
-    if (!accessResult.hasAccess) {
-      console.warn(`⚠️ Feature access denied: ${accessResult.reason}`)
-      return NextResponse.json({ error: accessResult.reason, message: accessResult.message, remainingRequests: accessResult.remainingRequests, tier: accessResult.userTier }, { status: 403 })
-    }
+   const accessResult = await gateFeatureAccess({
+  request,
+  featureKey: 'tailor',
+  logRequestId: user.id
+})
 
-    console.log(`✓ Feature access granted for tier: ${accessResult.userTier}`)
-    console.log(`  Remaining requests: ${accessResult.remainingRequests}`)
+if (!accessResult.allowed) {
+  console.warn(`⚠️ Feature access denied: ${accessResult.error}`)
+  return NextResponse.json(
+    { 
+      error: accessResult.error, 
+      message: accessResult.details,
+      tier: accessResult.packageTier,
+      remainingRequests: accessResult.usageStats?.remaining
+    }, 
+    { status: accessResult.statusCode }
+  )
+}
+
+console.log('✓ Feature access granted for tier:', accessResult.packageTier)
+console.log('Remaining requests:', accessResult.usageStats?.remaining)
 
     console.log('Step 3: Parsing request body...')
     let jobDescription, companyName, jobTitle, jobUrl
