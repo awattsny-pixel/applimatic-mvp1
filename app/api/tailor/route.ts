@@ -195,10 +195,13 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
       data: humanizedResume,
       remaining: accessResult.usageStats?.remaining - 1,
       tier: accessResult.packageTier
+    })
   } catch (error: any) {
     const totalDuration = Date.now() - startTime
-    console.humanizedResume TAILOR API ERROR === Total time before error: ${totalDuration}ms`)
+    console.error(`=== TAILOR API ERROR === Total time before error: ${totalDuration}ms`)
     console.error('Uncaught error:', error)
-    console.error('Error message:', error?.message)    return NextResponse.json({ error: error.message ?? 'Something went wrong. Please try again.' }, { status: 500 })
-
+    console.error('Error message:', error?.message)
+    console.error('Error stack:', error?.stack)
+    return NextResponse.json({ error: error.message ?? 'Something went wrong. Please try again.' }, { status: 500 })
+  }
 }
