@@ -13,6 +13,7 @@ interface HumanizeOptions {
   reduceFormalTone?: boolean
   fixWeakVerbs?: boolean
   breakUpLongSentences?: boolean
+  removeFillerPhrases?: boolean
 }
 
 const DEFAULT_OPTIONS: HumanizeOptions = {
@@ -21,6 +22,7 @@ const DEFAULT_OPTIONS: HumanizeOptions = {
   reduceFormalTone: true,
   fixWeakVerbs: true,
   breakUpLongSentences: true,
+  removeFillerPhrases: true,
 }
 
 /**
