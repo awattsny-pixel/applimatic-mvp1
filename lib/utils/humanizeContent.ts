@@ -190,7 +190,7 @@ function breakUpLongSentences(text: string): string {
           .replace(/;\s*/g, '. ')
           // Break on common transition words
           .replace(/,\s*(which|that|while|and|but|however|therefore)\s+/gi,
-                   '. \1 ')
+                   '. \\1 ')
       }
 
       return sentence
