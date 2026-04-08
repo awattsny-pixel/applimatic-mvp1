@@ -195,7 +195,6 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
       data: humanizedResume,
       remaining: accessResult.usageStats?.remaining - 1,
       tier: accessResult.packageTier
-    humanizedResume
   } catch (error: any) {
     const totalDuration = Date.now() - startTime
     console.humanizedResume TAILOR API ERROR === Total time before error: ${totalDuration}ms`)
