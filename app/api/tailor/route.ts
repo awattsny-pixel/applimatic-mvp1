@@ -192,7 +192,7 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
     return NextResponse.json({
       success: true,
       outputId: savedOutput?.id,
-      data: humanizedResume,
+      data: tailoredData,
       remaining: accessResult.usageStats?.remaining - 1,
       tier: accessResult.packageTier
     })
