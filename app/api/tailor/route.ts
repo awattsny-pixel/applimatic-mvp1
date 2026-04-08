@@ -3,7 +3,7 @@ import Anthropic from '@anthropic-ai/sdk'
 import { createClient } from '@/lib/supabase/server'
 import { buildTailorPrompt } from '@/lib/prompts'
 import { gateFeatureAccess, recordFeatureUsage } from '@/lib/middleware/packageFeatureGate'
-
+import { humanizeResume } from '@/lib/utils/humanizeContent'
 export const maxDuration = 120
 
 export async function POST(request: NextRequest) {
@@ -127,6 +127,11 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
         console.log(`✓ JSON parsed successfully. Keys: ${Object.keys(tailoredData).join(', ')}`)
       } catch (parseErr: any) {
         console.error('❌ Failed to parse Claude JSON response:', parseErr.message)
+
+                            // ✅ Humanize the tailored sections to remove AI writing markers
+                            const humanizedResume = humanizeResume(
+                                                    tailoredData.tailored_sections?.join('\n') || ''
+                                                  )
         console.error('First 500 chars of response:', rawText.slice(0, 500))
         return NextResponse.json({ error: 'AI returned an unexpected format. Please try again.', details: parseErr.message }, { status: 500 })
       }
@@ -187,16 +192,14 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
     return NextResponse.json({
       success: true,
       outputId: savedOutput?.id,
-      data: tailoredData,
+      data: humanizedResume,
       remaining: accessResult.usageStats?.remaining - 1,
       tier: accessResult.packageTier
-    })
+    humanizedResume
   } catch (error: any) {
     const totalDuration = Date.now() - startTime
-    console.error(`=== TAILOR API ERROR === Total time before error: ${totalDuration}ms`)
+    console.humanizedResume TAILOR API ERROR === Total time before error: ${totalDuration}ms`)
     console.error('Uncaught error:', error)
-    console.error('Error message:', error?.message)
-    console.error('Error stack:', error?.stack)
-    return NextResponse.json({ error: error.message ?? 'Something went wrong. Please try again.' }, { status: 500 })
-  }
+    console.error('Error message:', error?.message)    return NextResponse.json({ error: error.message ?? 'Something went wrong. Please try again.' }, { status: 500 })
+
 }
