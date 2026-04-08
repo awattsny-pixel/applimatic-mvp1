@@ -136,7 +136,7 @@ function breakUpLongSentences(text: string): string {
         return sentence
                     .replace(/;\s*/g, '. ')
           .replace(/,\s*(which|that|while|and|but|however|therefore)\s+/gi,
-                             '. \1 ')
+                             '. \\1 ')
           }
 
       return sentence
