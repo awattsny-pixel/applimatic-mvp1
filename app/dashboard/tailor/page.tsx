@@ -2,6 +2,14 @@
 
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
+
+interface PrefilledJob {
+  jobTitle?: string
+  company?: string
+  jobDescription?: string
+  jobUrl?: string
+}
 
 // ── Types ────────────────────────────────────────────────────
 type BulletChange = { original: string; tailored: string; reason: string }
@@ -31,6 +39,7 @@ type TailorResult = {
   cover_letter: string
   key_matches: string[]
   key_gaps: string[]
+  mergedResume?: string // The full resume with tailored sections merged in
 }
 
 // ── Loading messages (shown during AI processing) ────────────
@@ -102,6 +111,7 @@ function BulletDiff({ changes }: { changes: BulletChange[] }) {
 // ── Main Page ────────────────────────────────────────────────
 export default function TailorPage() {
   const searchParams = useSearchParams()
+  const supabase = createClient()
 
   // Form state — pre-fill from URL params if coming from Applications page
   const [companyName,     setCompanyName]     = useState(searchParams.get('company') ?? '')
@@ -115,11 +125,62 @@ export default function TailorPage() {
   const [error,       setError]       = useState('')
   const [result,      setResult]      = useState<TailorResult | null>(null)
   const [remaining,   setRemaining]   = useState<number | null>(null)
+  const [mergedResume, setMergedResume] = useState<string | null>(null)
+
+  // Auth state
+  const [token, setToken] = useState<string | null>(null)
 
   // Result tab state
   const [activeTab,    setActiveTab]    = useState<'resume' | 'cover' | 'analysis'>('resume')
   const [copiedCover,  setCopiedCover]  = useState(false)
   const [openSections, setOpenSections] = useState<Record<number, boolean>>({})
+  const [isSaving,     setIsSaving]     = useState(false)
+  const [saveMessage,  setSaveMessage]  = useState<string | null>(null)
+  const [showMergedResume, setShowMergedResume] = useState(false)
+
+  // Get auth token on mount
+  useEffect(() => {
+    const getAuthToken = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) {
+        setToken(session.access_token)
+      }
+    }
+    getAuthToken()
+  }, [supabase])
+
+  // ── Pre-fill from job search result ────────────────────────
+  useEffect(() => {
+    // Try to get job data from sessionStorage first
+    const storedJobData = sessionStorage.getItem('applimaticJobData')
+    if (storedJobData) {
+      try {
+        const jobData: PrefilledJob = JSON.parse(storedJobData)
+        if (jobData.jobTitle) setJobTitle(jobData.jobTitle)
+        if (jobData.company) setCompanyName(jobData.company)
+        if (jobData.jobDescription) setJobDescription(jobData.jobDescription)
+        if (jobData.jobUrl) setJobUrl(jobData.jobUrl)
+        // Clear from sessionStorage after reading
+        sessionStorage.removeItem('applimaticJobData')
+      } catch (err) {
+        console.error('Failed to parse job data from sessionStorage:', err)
+      }
+    }
+
+    // Also support URL parameters for backward compatibility
+    const jobParam = searchParams.get('job')
+    if (jobParam) {
+      try {
+        const jobData: PrefilledJob = JSON.parse(decodeURIComponent(jobParam))
+        if (jobData.jobTitle) setJobTitle(jobData.jobTitle)
+        if (jobData.company) setCompanyName(jobData.company)
+        if (jobData.jobDescription) setJobDescription(jobData.jobDescription)
+        if (jobData.jobUrl) setJobUrl(jobData.jobUrl)
+      } catch (err) {
+        console.error('Failed to parse job data from URL:', err)
+      }
+    }
+  }, [searchParams])
 
   // ── Submit handler ─────────────────────────────────────────
   async function handleSubmit(e: React.FormEvent) {
@@ -156,6 +217,7 @@ export default function TailorPage() {
       }
 
       setResult(json.data)
+      setMergedResume(json.mergedResume)
       setRemaining(json.remaining)
       setStep('result')
       setOpenSections({ 0: true }) // open first section by default
@@ -180,9 +242,83 @@ export default function TailorPage() {
   function handleReset() {
     setStep('form')
     setResult(null)
+    setMergedResume(null)
     setError('')
     setJobDescription('')
     setActiveTab('resume')
+    setShowMergedResume(false)
+  }
+
+  async function handleSaveAndDownload() {
+    if (!result || !token || !mergedResume) {
+      setSaveMessage('Resume not ready')
+      return
+    }
+
+    setIsSaving(true)
+    setSaveMessage(null)
+
+    try {
+      // First, save to database
+      const saveRes = await fetch('/api/tailored-resumes/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          companyName,
+          jobTitle,
+          jobDescription,
+          tailoredContent: result,
+          coverLetter: result.cover_letter,
+          atsScore: result.analysis?.ats_score,
+        }),
+      })
+
+      if (!saveRes.ok) {
+        setSaveMessage('Failed to save resume version')
+        return
+      }
+
+      setSaveMessage('✓ Saved to your account')
+
+      // Then, download the merged resume
+      const downloadRes = await fetch('/api/tailored-resumes/download', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          mergedResume,
+          companyName,
+          jobTitle,
+        }),
+      })
+
+      if (downloadRes.ok) {
+        // Trigger download
+        const blob = await downloadRes.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${companyName}_${jobTitle}_resume.docx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+
+        setSaveMessage('✓ Saved & downloaded!')
+        setTimeout(() => setSaveMessage(null), 3000)
+      } else {
+        setSaveMessage('Download generated but failed to trigger')
+      }
+    } catch (err) {
+      console.error('Error saving/downloading:', err)
+      setSaveMessage('Failed to save or download')
+    } finally {
+      setIsSaving(false)
+    }
   }
 
   // ══════════════════════════════════════════════════════════
@@ -224,12 +360,51 @@ export default function TailorPage() {
               {remaining !== null && ` ${remaining} application${remaining !== 1 ? 's' : ''} remaining this month.`}
             </p>
           </div>
-          <div className="flex gap-2 flex-shrink-0">
-            <button onClick={handleReset} className="btn-secondary text-sm">
-              ← AppliMatic another
-            </button>
+          <div className="flex gap-2 flex-shrink-0 flex-wrap">
+            {showMergedResume ? (
+              <>
+                <button
+                  onClick={handleSaveAndDownload}
+                  disabled={isSaving}
+                  className="btn-primary text-sm disabled:opacity-50"
+                  title="Save to account and download as Word document"
+                >
+                  {isSaving ? '…' : '↓ Download DOCX'}
+                </button>
+                <button
+                  onClick={() => setShowMergedResume(false)}
+                  className="btn-secondary text-sm"
+                >
+                  ← Back to changes
+                </button>
+              </>
+            ) : (
+              <>
+                <button
+                  onClick={() => setShowMergedResume(true)}
+                  className="btn-primary text-sm"
+                  title="Merge all changes into your full resume"
+                >
+                  Rebuild Your Resume ↓
+                </button>
+                <button onClick={handleReset} className="btn-secondary text-sm">
+                  ← AppliMatic another
+                </button>
+              </>
+            )}
           </div>
         </div>
+
+        {/* Save Status Message */}
+        {saveMessage && (
+          <div className={`mb-6 p-4 rounded-xl text-sm font-medium ${
+            saveMessage.includes('Failed')
+              ? 'bg-red-50 text-red-700 border border-red-200'
+              : 'bg-green-50 text-green-700 border border-green-200'
+          }`}>
+            {saveMessage}
+          </div>
+        )}
 
         {/* ATS Score + Top Stats */}
         <div className="card p-5 mb-6 flex flex-col sm:flex-row items-center gap-6">
@@ -285,7 +460,59 @@ export default function TailorPage() {
 
         {/* ── RESUME TAB ─────────────────────────────────── */}
         {activeTab === 'resume' && (
-          <div className="space-y-3">
+          <>
+            {showMergedResume && mergedResume ? (
+              <div className="bg-white rounded-xl border border-gray-300 shadow-sm">
+                {/* Document header */}
+                <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b border-gray-200">
+                  <p className="text-xs text-gray-500 font-semibold tracking-wide">TAILORED RESUME</p>
+                  <h3 className="text-lg font-bold text-gray-900 mt-1">
+                    {companyName} — {jobTitle}
+                  </h3>
+                </div>
+                {/* Document content - styled like Word */}
+                <div className="p-8 bg-white max-h-[70vh] overflow-y-auto">
+                  <div className="prose prose-sm max-w-none font-serif text-gray-800 leading-relaxed">
+                    {mergedResume.split('\n').map((line, idx) => {
+                      const trimmed = line.trim()
+                      // Check if it's a section heading (all caps)
+                      const isHeading = trimmed === trimmed.toUpperCase() && trimmed.length > 0 && trimmed.length < 50
+                      // Check if it's a bullet point
+                      const isBullet = /^[•\-*]\s+/.test(line)
+
+                      if (!trimmed) {
+                        return <div key={idx} className="h-2" />
+                      }
+
+                      if (isHeading) {
+                        return (
+                          <div key={idx} className="font-bold text-gray-900 text-base mt-4 mb-2 border-b border-gray-300 pb-1">
+                            {trimmed}
+                          </div>
+                        )
+                      }
+
+                      if (isBullet) {
+                        const content = trimmed.replace(/^[•\-*]\s+/, '')
+                        return (
+                          <div key={idx} className="ml-4 mb-1 flex">
+                            <span className="mr-3">•</span>
+                            <span>{content}</span>
+                          </div>
+                        )
+                      }
+
+                      return (
+                        <div key={idx} className="mb-2 text-sm">
+                          {trimmed}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
             {result.tailored_sections?.map((section, i) => {
               const isOpen = openSections[i] ?? false
 
@@ -391,7 +618,9 @@ export default function TailorPage() {
 
               return null
             })}
-          </div>
+            </div>
+            )}
+          </>
         )}
 
         {/* ── COVER LETTER TAB ───────────────────────────── */}

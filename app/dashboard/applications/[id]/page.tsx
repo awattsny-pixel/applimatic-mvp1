@@ -130,6 +130,9 @@ export default function ApplicationDetailPage() {
   const [savingNotes, setSavingNotes] = useState(false)
   const [copied, setCopied]         = useState(false)
   const [openSections, setOpenSections] = useState<Record<number, boolean>>({ 0: true })
+  const [showMergedResume, setShowMergedResume] = useState(false)
+  const [mergedResume, setMergedResume] = useState<string | null>(null)
+  const [rebuilding, setRebuilding] = useState(false)
 
   const supabase = createClient()
 
@@ -163,6 +166,54 @@ export default function ApplicationDetailPage() {
 
   function toggleSection(i: number) {
     setOpenSections(prev => ({ ...prev, [i]: !prev[i] }))
+  }
+
+  async function handleRebuildResume() {
+    setRebuilding(true)
+    try {
+      const res = await fetch(`/api/rebuild-resume?id=${id}`)
+      const data = await res.json()
+      if (res.ok) {
+        setMergedResume(data.mergedResume)
+        setShowMergedResume(true)
+      } else {
+        console.error('Failed to rebuild resume:', data.error)
+      }
+    } catch (err) {
+      console.error('Error rebuilding resume:', err)
+    } finally {
+      setRebuilding(false)
+    }
+  }
+
+  async function handleDownloadResume() {
+    if (!mergedResume || !app) return
+
+    try {
+      const res = await fetch('/api/tailored-resumes/download', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mergedResume,
+          companyName: app.company_name,
+          jobTitle: app.job_title,
+        }),
+      })
+
+      if (res.ok) {
+        const blob = await res.blob()
+        const url = URL.createObjectURL(blob)
+        const a = document.createElement('a')
+        a.href = url
+        a.download = `${app.company_name}_${app.job_title}_resume.docx`
+        document.body.appendChild(a)
+        a.click()
+        document.body.removeChild(a)
+        URL.revokeObjectURL(url)
+      }
+    } catch (err) {
+      console.error('Error downloading resume:', err)
+    }
   }
 
   if (loading) return (
@@ -283,8 +334,83 @@ export default function ApplicationDetailPage() {
 
           {/* ── RESUME TAB ─────────────────────────────────── */}
           {tab === 'resume' && (
-            <div className="space-y-3">
-              {output.tailored_sections?.map((section, i) => {
+            <>
+              {showMergedResume && mergedResume ? (
+                <div className="bg-white rounded-xl border border-gray-300 shadow-sm">
+                  <div className="bg-gradient-to-r from-gray-50 to-gray-100 px-8 py-6 border-b border-gray-200 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs text-gray-500 font-semibold tracking-wide">TAILORED RESUME</p>
+                      <h3 className="text-lg font-bold text-gray-900 mt-1">
+                        {app.company_name} — {app.job_title}
+                      </h3>
+                    </div>
+                    <button
+                      onClick={handleDownloadResume}
+                      className="btn-primary text-sm"
+                      title="Download as Word document"
+                    >
+                      ↓ Download DOCX
+                    </button>
+                  </div>
+                  <div className="p-8 bg-white max-h-[70vh] overflow-y-auto">
+                    <div className="prose prose-sm max-w-none font-serif text-gray-800 leading-relaxed">
+                      {mergedResume.split('\n').map((line, idx) => {
+                        const trimmed = line.trim()
+                        const isHeading = trimmed === trimmed.toUpperCase() && trimmed.length > 0 && trimmed.length < 50
+                        const isBullet = /^[•\-*]\s+/.test(line)
+
+                        if (!trimmed) {
+                          return <div key={idx} className="h-2" />
+                        }
+
+                        if (isHeading) {
+                          return (
+                            <div key={idx} className="font-bold text-gray-900 text-base mt-4 mb-2 border-b border-gray-300 pb-1">
+                              {trimmed}
+                            </div>
+                          )
+                        }
+
+                        if (isBullet) {
+                          const content = trimmed.replace(/^[•\-*]\s+/, '')
+                          return (
+                            <div key={idx} className="ml-4 mb-1 flex">
+                              <span className="mr-3">•</span>
+                              <span>{content}</span>
+                            </div>
+                          )
+                        }
+
+                        return (
+                          <div key={idx} className="mb-2 text-sm">
+                            {trimmed}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+                  <div className="px-8 py-4 bg-gray-50 border-t border-gray-200">
+                    <button
+                      onClick={() => setShowMergedResume(false)}
+                      className="btn-secondary text-sm"
+                    >
+                      ← Back to changes
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  <div className="flex justify-end mb-6">
+                    <button
+                      onClick={handleRebuildResume}
+                      disabled={rebuilding}
+                      className="btn-primary text-sm disabled:opacity-50"
+                    >
+                      {rebuilding ? '…' : 'Rebuild Your Resume'}
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+            {output.tailored_sections?.map((section, i) => {
                 const isOpen = openSections[i] ?? false
 
                 if (section.section_type === 'summary') {
@@ -387,6 +513,9 @@ export default function ApplicationDetailPage() {
                 return null
               })}
             </div>
+              </>
+            )}
+            </>
           )}
 
           {/* ── COVER LETTER TAB ───────────────────────────── */}

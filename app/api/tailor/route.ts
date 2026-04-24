@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server'
 import { buildTailorPrompt } from '@/lib/prompts'
 import { gateFeatureAccess, recordFeatureUsage } from '@/lib/middleware/packageFeatureGate'
 import { humanizeResume } from '@/lib/utils/humanizeContent'
+import { mergeTailoredResume } from '@/lib/utils/mergeTailoredResume'
 export const maxDuration = 120
 
 export async function POST(request: NextRequest) {
@@ -186,6 +187,15 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
     await recordFeatureUsage(supabase, user.id, 'tailor', { responseTimeMs: Date.now() - startTime })
     console.log('✓ Feature usage recorded')
 
+    // Merge tailored sections back into the original resume
+    console.log('Step 9: Merging tailored sections into resume...')
+    const mergedResume = mergeTailoredResume(
+      resume.content_text,
+      tailoredData.tailored_sections,
+      tailoredData.tailored_sections?.find((s: any) => s.section_type === 'summary')?.tailored
+    )
+    console.log(`✓ Resume merged: ${mergedResume.length} chars (original: ${resume.content_text.length} chars)`)
+
     const totalDuration = Date.now() - startTime
     console.log(`=== TAILOR API SUCCESS === Total time: ${totalDuration}ms`)
 
@@ -193,6 +203,7 @@ console.log('Remaining requests:', accessResult.usageStats?.remaining)
       success: true,
       outputId: savedOutput?.id,
       data: tailoredData,
+      mergedResume: mergedResume,
       remaining: accessResult.usageStats?.remaining - 1,
       tier: accessResult.packageTier
     })

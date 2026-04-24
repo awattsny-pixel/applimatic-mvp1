@@ -74,7 +74,12 @@ export default async function DashboardPage() {
       </div>
 
       {/* Quick actions */}
-      <div className="grid sm:grid-cols-3 gap-4 mb-8">
+      <div className="grid sm:grid-cols-4 gap-4 mb-8">
+        <Link href="/dashboard/search" className="card p-5 hover:shadow-md transition-shadow border-t-4 border-t-brand group">
+          <div className="text-2xl mb-2">🔍</div>
+          <h3 className="font-bold text-gray-900 group-hover:text-brand transition-colors">Search for Jobs</h3>
+          <p className="text-gray-500 text-sm mt-1">Find opportunities across all platforms.</p>
+        </Link>
         <Link href="/dashboard/tailor" className="card p-5 hover:shadow-md transition-shadow border-t-4 border-t-brand group">
           <div className="text-2xl mb-2">✨</div>
           <h3 className="font-bold text-gray-900 group-hover:text-brand transition-colors">Applimatic a New Application</h3>
