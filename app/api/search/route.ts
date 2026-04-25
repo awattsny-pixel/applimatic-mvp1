@@ -1,64 +1,43 @@
 import { NextResponse } from 'next/server';
-import { aggregateJobs } from '@/lib/services/jobAggregator';
 
-export interface SearchFilters {
-  query: string;
-  location?: string;
-  minSalary?: number;
-  maxSalary?: number;
-  experience?: string;
-  workType?: 'remote' | 'hybrid' | 'in-person' | '';
-  postedWithin?: '24h' | '7d' | '30d' | '';
-  employmentTypes?: string[];
-  page?: number;
-}
+const MOCK_JOBS = [
+  {
+    id: 'job-001',
+    company_name: 'Acme Corp',
+    job_title: 'Senior Software Engineer',
+    location: 'San Francisco, CA',
+    salary_min: 120000,
+    salary_max: 180000,
+  },
+  {
+    id: 'job-002',
+    company_name: 'Tech Startup Inc',
+    job_title: 'Full Stack Developer',
+    location: 'New York, NY',
+    salary_min: 100000,
+    salary_max: 150000,
+  },
+];
 
 export async function POST(request: Request) {
   try {
-    const body = await request.json() as SearchFilters;
-    const { query, location, minSalary, maxSalary, experience, workType, postedWithin, employmentTypes, page = 1 } = body;
+    const body = await request.json();
+    const { query } = body;
 
-    if (!query || query.trim().length === 0) {
-      return NextResponse.json(
-        { status: 'error', message: 'Search query is required' },
-        { status: 400 }
-      );
+    if (!query) {
+      return NextResponse.json({ status: 'error', message: 'Query required' }, { status: 400 });
     }
 
-    // Aggregate jobs from all configured sources with filters
-    const searchResult = await aggregateJobs(query, {
-      location,
-      minSalary,
-      maxSalary,
-      experience,
-      workType,
-      postedWithin,
-      employmentTypes,
-      page,
-    });
+    const results = MOCK_JOBS.filter(job =>
+      job.job_title.toLowerCase().includes(query.toLowerCase())
+    );
 
     return NextResponse.json({
       status: 'success',
-      jobs: searchResult.jobs,
-      total_results: searchResult.totalResults,
-      result_count: searchResult.totalResults,
-      sources_info: searchResult.sources,
-      // Include source breakdown for visibility
-      source_summary: Object.entries(searchResult.sources).map(([source, info]) => ({
-        source,
-        count: info.count,
-        error: info.error || null,
-      })),
+      results,
+      result_count: results.length,
     });
   } catch (error) {
-    console.error('Search error:', error);
-    return NextResponse.json(
-      {
-        status: 'error',
-        message: 'Search failed',
-        error: error instanceof Error ? error.message : String(error),
-      },
-      { status: 500 }
-    );
+    return NextResponse.json({ status: 'error', error: String(error) }, { status: 500 });
   }
 }
