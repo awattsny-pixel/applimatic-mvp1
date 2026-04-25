@@ -101,7 +101,7 @@ export async function generateResumeDocx(
       {
         properties: {
           page: {
-            margins: {
+            margin: {
               top: convertInchesToTwip(1),
               bottom: convertInchesToTwip(1),
               left: convertInchesToTwip(1),

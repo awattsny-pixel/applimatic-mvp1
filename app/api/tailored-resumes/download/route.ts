@@ -27,8 +27,8 @@ export async function POST(request: Request) {
     const filename = `${companyName || 'Resume'}_${jobTitle || 'Tailored'}.docx`
     console.log('[download] Returning file:', filename)
 
-    return new NextResponse(docxBuffer, {
-      headers: {
+return new NextResponse(new Uint8Array(docxBuffer), {
+        headers: {
         'Content-Type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
         'Content-Disposition': `attachment; filename="${filename}"`,
       },

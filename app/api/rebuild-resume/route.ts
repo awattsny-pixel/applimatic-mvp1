@@ -1,6 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs'
-import { cookies } from 'next/headers'
+import { createClient } from '@/lib/supabase/server'
 import { mergeTailoredResume } from '@/lib/utils/mergeTailoredResume'
 
 export async function GET(request: NextRequest) {
@@ -16,9 +15,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Get the authenticated user
-    const cookieStore = await cookies()
-    const supabase = createServerComponentClient({ cookies: () => cookieStore })
-
+    const supabase = await createClient()
     const { data: { user }, error: authError } = await supabase.auth.getUser()
 
     if (authError || !user) {
@@ -72,12 +69,12 @@ export async function GET(request: NextRequest) {
     }
 
     // Merge the tailored sections into the master resume
-    const mergedResume = mergeTailoredResume(
-      resume.content,
-      tailoredOutput.tailored_sections || {}
-    )
-
-    return NextResponse.json({
+const mergedResume = mergeTailoredResume(
+  resume.content,
+  tailoredOutput.tailored_sections,
+  tailoredOutput.tailored_summary
+)
+   return NextResponse.json({
       success: true,
       mergedResume,
       company_name: application.company_name,

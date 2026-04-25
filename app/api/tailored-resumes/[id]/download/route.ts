@@ -8,10 +8,10 @@ const supabase = createClient(
 
 export async function GET(
   request: Request,
-  { params }: { params: { id: string } }
+{ params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const resumeId = params.id
+const resumeId = (await params).id
 
     // Get the user from the Authorization header
     const authHeader = request.headers.get('authorization')

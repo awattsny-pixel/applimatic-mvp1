@@ -26,7 +26,7 @@ type SummarySection = {
 }
 type TailoredSection = ExperienceSection | SummarySection
 
-type TailorResult = {
+export type TailorResult = {
   analysis: {
     top_priorities: string[]
     key_skills: string[]

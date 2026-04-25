@@ -138,7 +138,7 @@ export async function gateFeatureAccess(
         featureKey,
         error: hasAccess.reason,
         details: hasAccess.details,
-        statusCode: hasAccess.statusCode,
+        statusCode: hasAccess.statusCode || 403,
       }
     }
 

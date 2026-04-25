@@ -234,7 +234,7 @@ function filterJobs(jobs: UnifiedJob[], options?: JobSearchOptions): UnifiedJob[
     }
 
     // Filter by work type (remote, hybrid, in-person)
-    if (options.workType && options.workType !== '') {
+    if (options.workType) {
       const jobTypeStr = (job.jobType || '').toLowerCase();
       const workTypeStr = options.workType.toLowerCase();
       if (!jobTypeStr.includes(workTypeStr)) return false;
@@ -258,7 +258,7 @@ function filterJobs(jobs: UnifiedJob[], options?: JobSearchOptions): UnifiedJob[
     }
 
     // Filter by posted within (based on postedDate)
-    if (options.postedWithin && options.postedWithin !== '' && job.postedDate) {
+    if (options.postedWithin && job.postedDate) {
       const postedDate = new Date(job.postedDate);
       const now = new Date();
       const hoursAgo = (now.getTime() - postedDate.getTime()) / (1000 * 60 * 60);
